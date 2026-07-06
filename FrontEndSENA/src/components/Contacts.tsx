@@ -1,5 +1,7 @@
+// Componente de Contactos: Clientes y Proveedores
 import { useState, useMemo } from 'react'
 
+// Interfaz para Cliente
 interface Client {
   id?: number
   nombre: string
@@ -7,6 +9,7 @@ interface Client {
   email: string
 }
 
+// Interfaz para Proveedor
 interface Supplier {
   id?: number
   nombre: string
@@ -15,6 +18,7 @@ interface Supplier {
   direccion?: string
 }
 
+// Props que recibe el componente
 interface ContactsProps {
   clients: Client[]
   suppliers: Supplier[]
@@ -36,21 +40,23 @@ function Contacts({
   onEditSupplier,
   onRemoveSupplier
 }: ContactsProps) {
+  // Estado: pestana activa (clientes o proveedores)
   const [activeTab, setActiveTab] = useState<'clients' | 'suppliers'>('clients')
+  // Estado: busqueda
   const [search, setSearch] = useState('')
 
-  // Modales
+  // Estado: modales
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
-  // Estados Formulario
+  // Estado: formulario
   const [editingId, setEditingId] = useState<number | null>(null)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
 
-  // Limpiar
+  // Limpia el formulario
   const clearForm = () => {
     setName('')
     setPhone('')
@@ -59,13 +65,13 @@ function Contacts({
     setEditingId(null)
   }
 
-  // Abrir Agregar
+  // Abre modal para agregar
   const openAddModal = () => {
     clearForm()
     setIsAddModalOpen(true)
   }
 
-  // Abrir Editar
+  // Abre modal para editar
   const openEditModal = (item: any) => {
     setName(item.nombre)
     setPhone(item.telefono)
@@ -77,7 +83,7 @@ function Contacts({
     setIsEditModalOpen(true)
   }
 
-  // Filtrado
+  // Filtra clientes por busqueda
   const filteredClients = useMemo(() => {
     if (activeTab !== 'clients') return []
     return clients.filter((c) => {
@@ -89,6 +95,7 @@ function Contacts({
     })
   }, [clients, search, activeTab])
 
+  // Filtra proveedores por busqueda
   const filteredSuppliers = useMemo(() => {
     if (activeTab !== 'suppliers') return []
     return suppliers.filter((s) => {
@@ -101,7 +108,7 @@ function Contacts({
     })
   }, [suppliers, search, activeTab])
 
-  // Enviar Agregar
+  // Envia el formulario para agregar
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
@@ -128,7 +135,7 @@ function Contacts({
     }
   }
 
-  // Enviar Editar
+  // Envia el formulario para editar
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (editingId === null || !name.trim()) return
@@ -155,7 +162,7 @@ function Contacts({
     }
   }
 
-  // Eliminar
+  // Elimina un cliente o proveedor
   const handleDelete = async (id?: number) => {
     if (!id) return
     const text = activeTab === 'clients' ? 'cliente' : 'proveedor'

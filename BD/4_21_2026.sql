@@ -1,3 +1,5 @@
+-- Script de base de datos para Papelsoft
+-- Crea la estructura completa de tablas
 -- Crear base de datos
 CREATE DATABASE papeleria_db;
 USE papeleria_db;

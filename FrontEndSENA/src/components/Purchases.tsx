@@ -1,5 +1,7 @@
+// Componente de Compras e Ingresos de Inventario
 import { useState, useMemo } from 'react'
 
+// Interfaz para Producto
 interface Product {
   id?: number
   nombre: string
@@ -8,6 +10,7 @@ interface Product {
   codigoBarras?: string
 }
 
+// Interfaz para Proveedor
 interface Supplier {
   id?: number
   nombre: string
@@ -16,6 +19,7 @@ interface Supplier {
   direccion?: string
 }
 
+// Interfaz para Compra
 interface Purchase {
   id?: number
   proveedorId?: number
@@ -24,6 +28,7 @@ interface Purchase {
   total: number
 }
 
+// Interfaz para Detalle de Compra
 interface PurchaseDetail {
   id?: number
   compraId?: number
@@ -32,6 +37,7 @@ interface PurchaseDetail {
   precioCompra: number
 }
 
+// Props del componente
 interface PurchasesProps {
   purchases: Purchase[]
   purchaseDetails: PurchaseDetail[]
@@ -40,6 +46,7 @@ interface PurchasesProps {
   onAddPurchase: (purchaseData: { proveedorId?: number; total: number; details: Omit<PurchaseDetail, 'id'>[] }) => Promise<boolean>
 }
 
+// Item del carrito de compras
 interface CartItem {
   product: Product
   quantity: number
@@ -47,19 +54,20 @@ interface CartItem {
 }
 
 function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurchase }: PurchasesProps) {
+  // Estado: vista actual (lista o crear)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [searchPurchase, setSearchPurchase] = useState('')
   const [selectedPurchaseForModal, setSelectedPurchaseForModal] = useState<Purchase | null>(null)
 
-  // Estados para Registro de Nueva Compra
+  // Estado: formulario de nueva compra
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | ''>('')
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchProduct, setSearchProduct] = useState('')
   
-  // Entrada para precio de compra personalizado al agregar
+  // Estado: precios de compra personalizados
   const [customCostPrices, setCustomCostPrices] = useState<Record<number, number>>({})
 
-  // Filtrado de Historial de Compras
+  // Filtra el historial de compras por busqueda
   const filteredPurchases = useMemo(() => {
     return purchases
       .filter((p) => {
@@ -71,7 +79,7 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
   }, [purchases, suppliers, searchPurchase])
 
-  // Catálogo de Productos
+  // Filtra el catalogo de productos por busqueda
   const catalogProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch =
@@ -81,22 +89,22 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
     })
   }, [products, searchProduct])
 
-  // Detalles de la compra seleccionada para el modal
+  // Obtiene los detalles de la compra seleccionada
   const activePurchaseDetails = useMemo(() => {
     if (!selectedPurchaseForModal) return []
     return purchaseDetails.filter((d) => d.compraId === selectedPurchaseForModal.id)
   }, [selectedPurchaseForModal, purchaseDetails])
 
-  // Totales de la Compra actual en Carrito
+  // Calcula el total del carrito
   const cartTotals = useMemo(() => {
     const total = cart.reduce((sum, item) => sum + item.costPrice * item.quantity, 0)
     return { total }
   }, [cart])
 
-  // Manejadores de Carrito
+  // Agrega un producto al carrito de compra
   const addToCart = (product: Product) => {
     if (!product.id) return
-    const currentCostInput = customCostPrices[product.id] || Math.round(product.precio * 0.7) // Costo estimado de 70% por defecto si no lo llenaron
+    const currentCostInput = customCostPrices[product.id] || Math.round(product.precio * 0.7)
 
     setCart((current) => {
       const existingIndex = current.findIndex((item) => item.product.id === product.id)
@@ -106,7 +114,7 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
         updated[existingIndex] = {
           ...updated[existingIndex],
           quantity: updated[existingIndex].quantity + 1,
-          costPrice: currentCostInput // Actualiza al costo más reciente ingresado
+          costPrice: currentCostInput
         }
         return updated
       } else {
@@ -115,6 +123,7 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
     })
   }
 
+  // Actualiza la cantidad de un producto en el carrito
   const updateQuantity = (productId: number, delta: number) => {
     if (!productId) return
     setCart((current) => {
@@ -134,6 +143,7 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
     })
   }
 
+  // Actualiza el precio de costo de un producto en el carrito
   const updateCostPrice = (productId: number, val: number) => {
     setCart((current) => {
       const existingIndex = current.findIndex((item) => item.product.id === productId)
@@ -145,12 +155,13 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
     })
   }
 
+  // Elimina un producto del carrito
   const removeFromCart = (productId?: number) => {
     if (!productId) return
     setCart((current) => current.filter((item) => item.product.id !== productId))
   }
 
-  // Guardar Compra
+  // Guarda la compra completa
   const handlePurchaseSubmit = async () => {
     if (cart.length === 0) {
       alert('Agregue al menos un artículo para comprar.')
@@ -181,19 +192,21 @@ function Purchases({ purchases, purchaseDetails, products, suppliers, onAddPurch
     }
   }
 
-  // Helpers
+  // Obtiene nombre del proveedor por ID
   const getSupplierName = (supplierId?: number) => {
     if (!supplierId) return 'Proveedor General'
     const found = suppliers.find((s) => s.id === supplierId)
     return found ? found.nombre : `Proveedor #${supplierId}`
   }
 
+  // Obtiene nombre del producto por ID
   const getProductName = (productId?: number) => {
     if (!productId) return 'Producto Desconocido'
     const found = products.find((p) => p.id === productId)
     return found ? found.nombre : `Artículo #${productId}`
   }
 
+  // Formatea valores como moneda
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',

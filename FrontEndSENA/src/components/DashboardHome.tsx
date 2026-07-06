@@ -1,5 +1,7 @@
+// Componente del Tablero Principal (Dashboard)
 import { useMemo } from 'react'
 
+// Interfaz para Producto
 interface Product {
   id?: number
   nombre: string
@@ -10,6 +12,7 @@ interface Product {
   codigoBarras?: string
 }
 
+// Interfaz para Venta
 interface Sale {
   id?: number
   clienteId?: number
@@ -18,6 +21,7 @@ interface Sale {
   total: number
 }
 
+// Interfaz para Cliente
 interface Client {
   id?: number
   nombre: string
@@ -25,6 +29,7 @@ interface Client {
   email: string
 }
 
+// Props del componente
 interface DashboardHomeProps {
   products: Product[]
   sales: Sale[]
@@ -33,7 +38,7 @@ interface DashboardHomeProps {
 }
 
 function DashboardHome({ products, sales, clients, onNavigate }: DashboardHomeProps) {
-  // Calcular métricas clave
+  // Calcula metricas clave del negocio
   const metrics = useMemo(() => {
     const totalProductsCount = products.length
     const lowStockCount = products.filter((p) => p.stock <= 10).length
@@ -48,7 +53,7 @@ function DashboardHome({ products, sales, clients, onNavigate }: DashboardHomePr
     }
   }, [products, sales, clients])
 
-  // Obtener los productos con bajo stock (stock <= 10), ordenados de menor a mayor stock
+  // Productos con stock bajo (<=10), ordenados de menor a mayor
   const lowStockItems = useMemo(() => {
     return products
       .filter((p) => p.stock <= 10)
@@ -56,21 +61,21 @@ function DashboardHome({ products, sales, clients, onNavigate }: DashboardHomePr
       .slice(0, 5)
   }, [products])
 
-  // Obtener las últimas 5 ventas
+  // Ultimas 5 ventas registradas
   const recentSales = useMemo(() => {
     return [...sales]
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
       .slice(0, 5)
   }, [sales])
 
-  // Helper para buscar el nombre de un cliente
+  // Obtiene el nombre del cliente por su ID
   const getClientName = (clientId?: number) => {
     if (!clientId) return 'Cliente General'
     const found = clients.find((c) => c.id === clientId)
     return found ? found.nombre : `Cliente #${clientId}`
   }
 
-  // Formatear dinero en Pesos Colombianos / Formato estándar
+  // Formatea valores como moneda (Pesos Colombianos)
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',

@@ -1,5 +1,7 @@
+// Componente de Ventas y Facturacion
 import { useState, useMemo } from 'react'
 
+// Interfaz para Producto
 interface Product {
   id?: number
   nombre: string
@@ -8,6 +10,7 @@ interface Product {
   codigoBarras?: string
 }
 
+// Interfaz para Cliente
 interface Client {
   id?: number
   nombre: string
@@ -15,6 +18,7 @@ interface Client {
   email: string
 }
 
+// Interfaz para Venta
 interface Sale {
   id?: number
   clienteId?: number
@@ -23,6 +27,7 @@ interface Sale {
   total: number
 }
 
+// Interfaz para Detalle de Venta
 interface SaleDetail {
   id?: number
   ventaId?: number
@@ -31,6 +36,7 @@ interface SaleDetail {
   precioVenta: number
 }
 
+// Props del componente
 interface SalesProps {
   sales: Sale[]
   saleDetails: SaleDetail[]
@@ -39,22 +45,24 @@ interface SalesProps {
   onAddSale: (saleData: { clienteId?: number; total: number; details: Omit<SaleDetail, 'id'>[] }) => Promise<boolean>
 }
 
+// Item del carrito de ventas
 interface CartItem {
   product: Product
   quantity: number
 }
 
 function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps) {
+  // Estado: vista actual (lista o crear)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [searchSale, setSearchSale] = useState('')
   const [selectedSaleForModal, setSelectedSaleForModal] = useState<Sale | null>(null)
 
-  // Estados para Registro de Nueva Venta
+  // Estado: formulario de nueva venta
   const [selectedClientId, setSelectedClientId] = useState<number | ''>('')
   const [cart, setCart] = useState<CartItem[]>([])
   const [searchProduct, setSearchProduct] = useState('')
 
-  // Filtrado de Historial de Ventas
+  // Filtra el historial de ventas por busqueda
   const filteredSales = useMemo(() => {
     return sales
       .filter((s) => {
@@ -66,7 +74,7 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
       .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
   }, [sales, clients, searchSale])
 
-  // Filtrado de Catálogo de Productos en la Venta
+  // Filtra el catalogo de productos con stock disponible
   const catalogProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch =
@@ -76,13 +84,13 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
     })
   }, [products, searchProduct])
 
-  // Detalles de la venta seleccionada para el modal
+  // Obtiene los detalles de la venta seleccionada
   const activeSaleDetails = useMemo(() => {
     if (!selectedSaleForModal) return []
     return saleDetails.filter((d) => d.ventaId === selectedSaleForModal.id)
   }, [selectedSaleForModal, saleDetails])
 
-  // Totales de la Venta actual en Carrito
+  // Calcula el total del carrito
   const cartTotals = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + item.product.precio * item.quantity, 0)
     return {
@@ -90,12 +98,12 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
     }
   }, [cart])
 
-  // Manejadores de Carrito
+  // Agrega un producto al carrito de venta
   const addToCart = (product: Product) => {
     setCart((current) => {
       const existingIndex = current.findIndex((item) => item.product.id === product.id)
       
-      // Validar stock físico antes de sumar
+      // Validar stock disponible
       const currentQty = existingIndex > -1 ? current[existingIndex].quantity : 0
       if (currentQty >= product.stock) {
         alert(`No hay suficiente stock. Stock actual: ${product.stock} unidades.`)
@@ -115,6 +123,7 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
     })
   }
 
+  // Actualiza la cantidad de un producto en el carrito
   const updateQuantity = (productId: number, delta: number) => {
     if (!productId) return
     setCart((current) => {
@@ -128,7 +137,7 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
         return current.filter((item) => item.product.id !== productId)
       }
 
-      // Validar límites de stock
+      // Validar limite de stock
       if (newQty > item.product.stock) {
         alert(`No se pueden vender más de ${item.product.stock} unidades de este artículo.`)
         return current
@@ -140,12 +149,13 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
     })
   }
 
+  // Elimina un producto del carrito
   const removeFromCart = (productId?: number) => {
     if (!productId) return
     setCart((current) => current.filter((item) => item.product.id !== productId))
   }
 
-  // Confirmar y Registrar la Venta
+  // Confirma y registra la venta
   const handleCheckoutSubmit = async () => {
     if (cart.length === 0) {
       alert('Agregue al menos un producto al carrito.')
@@ -170,19 +180,21 @@ function Sales({ sales, saleDetails, products, clients, onAddSale }: SalesProps)
     }
   }
 
-  // Utilidades
+  // Obtiene nombre del cliente por ID
   const getClientName = (clientId?: number) => {
     if (!clientId) return 'Cliente General'
     const found = clients.find((c) => c.id === clientId)
     return found ? found.nombre : `Cliente #${clientId}`
   }
 
+  // Obtiene nombre del producto por ID
   const getProductName = (productId?: number) => {
     if (!productId) return 'Producto Desconocido'
     const found = products.find((p) => p.id === productId)
     return found ? found.nombre : `Artículo #${productId}`
   }
 
+  // Formatea valores como moneda
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',

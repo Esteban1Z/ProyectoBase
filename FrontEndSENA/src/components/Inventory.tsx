@@ -1,5 +1,7 @@
+// Componente de Inventario: Gestion de productos
 import { useState, useMemo } from 'react'
 
+// Interfaz para Producto
 interface Product {
   id?: number
   nombre: string
@@ -10,12 +12,14 @@ interface Product {
   codigoBarras?: string
 }
 
+// Interfaz para Categoria
 interface Category {
   id?: number
   nombre: string
   descripcion: string
 }
 
+// Props del componente
 interface InventoryProps {
   products: Product[]
   categories: Category[]
@@ -25,17 +29,18 @@ interface InventoryProps {
 }
 
 function Inventory({ products, categories, onAddProduct, onEditProduct, onRemoveProduct }: InventoryProps) {
+  // Estado: busqueda y filtro de categoria
   const [search, setSearch] = useState('')
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all')
 
-  // Estados para Modal de Agregar / Editar
+  // Estado: modales de agregar/editar
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   
-  // Producto actualmente seleccionado para edición
+  // Estado: ID del producto en edicion
   const [editingId, setEditingId] = useState<number | null>(null)
 
-  // Formulario temporal
+  // Estado: campos del formulario
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState<number | ''>('')
@@ -43,7 +48,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [barcode, setBarcode] = useState('')
 
-  // Limpiar campos de formulario
+  // Limpia los campos del formulario
   const clearForm = () => {
     setName('')
     setDescription('')
@@ -54,13 +59,13 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     setEditingId(null)
   }
 
-  // Abrir Agregar
+  // Abre el modal para agregar producto
   const openAddModal = () => {
     clearForm()
     setIsAddModalOpen(true)
   }
 
-  // Abrir Editar
+  // Abre el modal para editar producto
   const openEditModal = (p: Product) => {
     setName(p.nombre)
     setDescription(p.descripcion || '')
@@ -72,7 +77,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     setIsEditModalOpen(true)
   }
 
-  // Filtrado y Búsqueda
+  // Filtra productos por busqueda y categoria
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchesSearch =
@@ -88,7 +93,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     })
   }, [products, search, selectedCategoryFilter])
 
-  // Obtener nombre de la categoría
+  // Obtiene el nombre de una categoria por su ID
   const getCategoryName = (catId?: number) => {
     if (catId === undefined) return 'Sin categoría'
     const found = categories.find((c) => c.id === catId)

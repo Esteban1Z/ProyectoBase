@@ -1,11 +1,14 @@
+// Componente de Configuracion: Categorias, Usuarios y Sistema
 import { useState } from 'react'
 
+// Interfaz para Categoria
 interface Category {
   id?: number
   nombre: string
   descripcion: string
 }
 
+// Interfaz para Usuario
 interface User {
   id?: number
   nombre: string
@@ -15,6 +18,7 @@ interface User {
   createdAt?: string
 }
 
+// Props del componente
 interface SettingsProps {
   categories: Category[]
   users: User[]
@@ -42,33 +46,35 @@ function Settings({
   onResetDemoData,
   currentUserRole
 }: SettingsProps) {
+  // Estado: pestana activa
   const [activeTab, setActiveTab] = useState<'categories' | 'users' | 'system'>('categories')
 
-  // Modales
+  // Estado: modales
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
   const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false)
 
-  // Estados Formularios Categorías
+  // Estado: formulario de categorias
   const [catId, setCatId] = useState<number | null>(null)
   const [catName, setCatName] = useState('')
   const [catDescription, setCatDescription] = useState('')
 
-  // Estados Formularios Usuarios
+  // Estado: formulario de usuarios
   const [userId, setUserId] = useState<number | null>(null)
   const [userName, setUserName] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [userPassword, setUserPassword] = useState('')
   const [userRole, setUserRole] = useState('Vendedor')
 
-  // Helpers Limpieza
+  // Limpia el formulario de categorias
   const clearCategoryForm = () => {
     setCatName('')
     setCatDescription('')
     setCatId(null)
   }
 
+  // Limpia el formulario de usuarios
   const clearUserForm = () => {
     setUserName('')
     setUserEmail('')
@@ -77,7 +83,7 @@ function Settings({
     setUserId(null)
   }
 
-  // Categorías Handlers
+  // Maneja el envio del formulario de nueva categoria
   const handleAddCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!catName.trim()) return
@@ -88,6 +94,7 @@ function Settings({
     }
   }
 
+  // Maneja el envio del formulario de edicion de categoria
   const handleEditCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (catId === null || !catName.trim()) return
@@ -98,6 +105,7 @@ function Settings({
     }
   }
 
+  // Elimina una categoria
   const handleDeleteCategory = async (id?: number) => {
     if (!id) return
     if (window.confirm('¿Está seguro de eliminar esta categoría? Si tiene productos asociados, podrían quedar sin categoría.')) {
@@ -105,7 +113,7 @@ function Settings({
     }
   }
 
-  // Usuarios Handlers
+  // Maneja el envio del formulario de nuevo usuario
   const handleAddUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userName.trim() || !userEmail.trim() || !userPassword.trim()) return
@@ -121,13 +129,14 @@ function Settings({
     }
   }
 
+  // Maneja el envio del formulario de edicion de usuario
   const handleEditUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (userId === null || !userName.trim() || !userEmail.trim()) return
     const success = await onEditUser(userId, {
       nombre: userName.trim(),
       email: userEmail.trim(),
-      password: userPassword.trim() || undefined, // Clave opcional al editar
+      password: userPassword.trim() || undefined,
       rol: userRole
     })
     if (success) {
@@ -136,6 +145,7 @@ function Settings({
     }
   }
 
+  // Elimina un usuario (protege al admin demo)
   const handleDeleteUser = async (id?: number) => {
     if (!id) return
     if (id === 999) {

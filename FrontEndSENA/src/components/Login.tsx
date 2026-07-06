@@ -1,18 +1,21 @@
+// Componente de Login / Inicio de Sesion
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 
+// Props del componente
 interface LoginProps {
   onLoginSuccess: (user: { id: number; nombre: string; email: string; rol: string; isDemo: boolean }) => void
 }
 
 function Login({ onLoginSuccess }: LoginProps) {
+  // Estado del formulario
   const [email, setEmail] = useState('admin@mail.com')
   const [password, setPassword] = useState('123456')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [isBackendAlive, setIsBackendAlive] = useState<boolean | null>(null)
 
-  // Verificar si el backend está activo al montar el componente
+  // Verifica si el backend esta activo al cargar el componente
   useEffect(() => {
     const checkBackend = async () => {
       try {
@@ -35,12 +38,13 @@ function Login({ onLoginSuccess }: LoginProps) {
     checkBackend()
   }, [])
 
+  // Maneja el envio del formulario de login
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setErrorMsg('')
     setLoading(true)
 
-    // Si el backend no está activo o se cae, forzar opción de demo o intentar API
+    // Intenta login con backend si esta disponible
     if (isBackendAlive) {
       try {
         const res = await fetch('http://localhost:8080/api/usuarios/login', {
@@ -68,7 +72,7 @@ function Login({ onLoginSuccess }: LoginProps) {
         setLoading(false)
       }
     } else {
-      // Login Simulador para Modo Demo
+      // Login simulado para modo demo
       setTimeout(() => {
         setLoading(false)
         if (email === 'admin@mail.com' && password === '123456') {
@@ -94,6 +98,7 @@ function Login({ onLoginSuccess }: LoginProps) {
     }
   }
 
+  // Acceso directo al modo demo sin credenciales
   const handleDemoBypass = () => {
     onLoginSuccess({
       id: 999,

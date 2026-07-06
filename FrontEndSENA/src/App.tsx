@@ -1,3 +1,4 @@
+// Componente principal de la aplicacion Papelsoft
 import { useState, useEffect, useCallback } from 'react'
 import Login from './components/Login'
 import DashboardHome from './components/DashboardHome'
@@ -7,7 +8,7 @@ import Purchases from './components/Purchases'
 import Contacts from './components/Contacts'
 import Settings from './components/Settings'
 
-// interfaces
+// Interfaz para Usuario del sistema
 interface User {
   id: number
   nombre: string
@@ -16,6 +17,7 @@ interface User {
   isDemo: boolean
 }
 
+// Interfaz para Producto
 interface Product {
   id?: number
   nombre: string
@@ -26,12 +28,14 @@ interface Product {
   codigoBarras?: string
 }
 
+// Interfaz para Categoria
 interface Category {
   id?: number
   nombre: string
   descripcion: string
 }
 
+// Interfaz para Cliente
 interface Client {
   id?: number
   nombre: string
@@ -39,6 +43,7 @@ interface Client {
   email: string
 }
 
+// Interfaz para Proveedor
 interface Supplier {
   id?: number
   nombre: string
@@ -47,6 +52,7 @@ interface Supplier {
   direccion?: string
 }
 
+// Interfaz para Venta
 interface Sale {
   id?: number
   clienteId?: number
@@ -55,6 +61,7 @@ interface Sale {
   total: number
 }
 
+// Interfaz para Detalle de Venta
 interface SaleDetail {
   id?: number
   ventaId?: number
@@ -63,6 +70,7 @@ interface SaleDetail {
   precioVenta: number
 }
 
+// Interfaz para Compra
 interface Purchase {
   id?: number
   proveedorId?: number
@@ -71,6 +79,7 @@ interface Purchase {
   total: number
 }
 
+// Interfaz para Detalle de Compra
 interface PurchaseDetail {
   id?: number
   compraId?: number
@@ -79,6 +88,7 @@ interface PurchaseDetail {
   precioCompra: number
 }
 
+// Interfaz para Usuario del sistema (gestion)
 interface SystemUser {
   id?: number
   nombre: string
@@ -88,6 +98,7 @@ interface SystemUser {
   createdAt?: string
 }
 
+// Interfaz para notificaciones Toast
 interface Toast {
   id: number
   message: string
@@ -144,16 +155,20 @@ const INITIAL_PURCHASE_DETAILS: PurchaseDetail[] = [
   { id: 1, compraId: 1, productoId: 3, cantidad: 30, precioCompra: 14000 }
 ]
 
+// Componente principal de la app
 function App() {
+  // Estado del usuario actual
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  // Pestana activa en el panel
   const [activeTab, setActiveTab] = useState<string>('dashboard')
+  // Modo oscuro
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false)
+  // Sidebar en movil
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false)
-
-  // Modo de conexión detectado
+  // Modo de conexion (backend o demo local)
   const [connectionMode, setConnectionMode] = useState<'backend' | 'demo'>('demo')
 
-  // Listas de datos globales
+  // Estados globales de datos
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -164,9 +179,10 @@ function App() {
   const [purchaseDetails, setPurchaseDetails] = useState<PurchaseDetail[]>([])
   const [users, setUsers] = useState<SystemUser[]>([])
 
-  // Notificaciones Toast
+  // Notificaciones temporales (toasts)
   const [toasts, setToasts] = useState<Toast[]>([])
 
+  // Agrega una notificacion que desaparece tras 4 segundos
   const addToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     const id = Date.now()
     setToasts((current) => [...current, { id, message, type }])
@@ -175,7 +191,7 @@ function App() {
     }, 4000)
   }, [])
 
-  // Inicializar Tema desde LocalStorage
+  // Inicializa el tema oscuro desde LocalStorage
   useEffect(() => {
     const storedDark = localStorage.getItem('papelsoft_dark_mode')
     if (storedDark === 'true') {
@@ -187,6 +203,7 @@ function App() {
     }
   }, [])
 
+  // Alterna entre modo claro y oscuro
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => {
       const next = !prev
@@ -201,7 +218,7 @@ function App() {
     })
   }
 
-  // Detectar si el backend está activo y cargar datos
+  // Detecta si el backend esta activo y carga los datos
   useEffect(() => {
     const checkAndLoad = async () => {
       try {
@@ -233,7 +250,7 @@ function App() {
     }
   }, [currentUser])
 
-  // Carga de backend Spring Boot
+  // Carga datos desde el backend Spring Boot
   const loadFromBackend = async () => {
     try {
       const endpoints = [
@@ -262,7 +279,7 @@ function App() {
     }
   }
 
-  // Carga de simulador LocalStorage
+  // Carga datos desde LocalStorage (modo demo)
   const loadFromDemo = () => {
     const getLocal = <T,>(key: string, fallback: T): T => {
       const data = localStorage.getItem(key)
@@ -280,12 +297,12 @@ function App() {
     setUsers(getLocal('ps_users', INITIAL_USERS))
   }
 
-  // Guardar cambio en Demo LocalStorage
+  // Guarda el estado en LocalStorage para modo demo
   const saveDemoState = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data))
   }
 
-  // REESTABLECER MOCKDATA DEMO
+  // Restablece los datos demo a sus valores iniciales
   const handleResetDemoData = () => {
     localStorage.removeItem('ps_products')
     localStorage.removeItem('ps_categories')
@@ -301,20 +318,19 @@ function App() {
     addToast('Base de datos demo restablecida con éxito.', 'success')
   }
 
-  // LOGIN SUCCESS
+  // Maneja el inicio de sesion exitoso
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user)
     addToast(`¡Bienvenido de nuevo, ${user.nombre}!`, 'success')
   }
 
+  // Maneja el cierre de sesion
   const handleLogout = () => {
     setCurrentUser(null)
     setActiveTab('dashboard')
   }
 
-  // ==========================================================================
-  // OPERACIONES CRUD: PRODUCTOS
-  // ==========================================================================
+  // CRUD: Agregar un nuevo producto
   const handleAddProduct = async (p: Product): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
@@ -343,6 +359,7 @@ function App() {
     }
   }
 
+  // CRUD: Editar un producto existente
   const handleEditProduct = async (id: number, p: Product): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
@@ -370,6 +387,7 @@ function App() {
     }
   }
 
+  // CRUD: Eliminar un producto
   const handleRemoveProduct = async (id: number): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
@@ -393,13 +411,11 @@ function App() {
     }
   }
 
-  // ==========================================================================
-  // OPERACIONES: VENTAS
-  // ==========================================================================
+  // Registra una nueva venta (con detalles y descuento de stock)
   const handleAddSale = async (saleData: { clienteId?: number; total: number; details: Omit<SaleDetail, 'id'>[] }): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
-        // 1. Crear Venta
+        // Crea la venta en el backend
         const resVenta = await fetch('http://localhost:8080/api/ventas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -413,9 +429,8 @@ function App() {
         if (resVenta.ok) {
           const ventaCreada = await resVenta.json()
           
-          // 2. Crear detalles de venta y actualizar existencias de stock en paralelo
+          // Guarda los detalles y actualiza stock en paralelo
           await Promise.all([
-            // Guardar detalles
             ...saleData.details.map(d =>
               fetch('http://localhost:8080/api/detalle-ventas', {
                 method: 'POST',
@@ -423,7 +438,6 @@ function App() {
                 body: JSON.stringify({ ...d, ventaId: ventaCreada.id })
               })
             ),
-            // Disminuir existencias de productos
             ...saleData.details.map(async d => {
               if (!d.productoId) return
               const prod = products.find(p => p.id === d.productoId)
@@ -448,7 +462,7 @@ function App() {
       addToast('Error al registrar venta en el servidor.', 'error')
       return false
     } else {
-      // Registrar Venta Demo Local
+      // Registra venta en modo demo
       const saleId = sales.length ? Math.max(...sales.map(s => s.id || 0)) + 1 : 1
       const newSale: Sale = {
         id: saleId,
@@ -466,7 +480,7 @@ function App() {
         precioVenta: d.precioVenta
       }))
 
-      // Restar stock
+      // Resta stock de los productos vendidos
       const updatedProducts = products.map((p) => {
         const item = saleData.details.find((d) => d.productoId === p.id)
         if (item) {
@@ -492,13 +506,11 @@ function App() {
     }
   }
 
-  // ==========================================================================
-  // OPERACIONES: COMPRAS
-  // ==========================================================================
+  // Registra una nueva compra (con detalles y aumento de stock)
   const handleAddPurchase = async (purchaseData: { proveedorId?: number; total: number; details: Omit<PurchaseDetail, 'id'>[] }): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
-        // 1. Registrar Compra
+        // Crea la compra en el backend
         const resCompra = await fetch('http://localhost:8080/api/compras', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -512,7 +524,7 @@ function App() {
         if (resCompra.ok) {
           const compraCreada = await resCompra.json()
 
-          // 2. Registrar detalles de compra y SUMAR stock
+          // Guarda los detalles y suma stock en paralelo
           await Promise.all([
             ...purchaseData.details.map(d =>
               fetch('http://localhost:8080/api/detalle-compras', {
@@ -545,7 +557,7 @@ function App() {
       addToast('Error al registrar la compra en el servidor.', 'error')
       return false
     } else {
-      // Registrar Compra Demo Local
+      // Registra compra en modo demo
       const compId = purchases.length ? Math.max(...purchases.map(c => c.id || 0)) + 1 : 1
       const newPurchase: Purchase = {
         id: compId,
@@ -563,7 +575,7 @@ function App() {
         precioCompra: d.precioCompra
       }))
 
-      // Sumar stock
+      // Suma stock de los productos comprados
       const updatedProducts = products.map((p) => {
         const item = purchaseData.details.find((d) => d.productoId === p.id)
         if (item) {
@@ -588,9 +600,7 @@ function App() {
     }
   }
 
-  // ==========================================================================
-  // OPERACIONES CRUD: CLIENTES, PROVEEDORES, CATEGORIAS, USUARIOS
-  // ==========================================================================
+  // CRUD generico: Clientes, Proveedores, Categorias, Usuarios
   const executeGenericCrud = async (ep: string, action: 'add' | 'edit' | 'remove', id?: number, bodyData?: any, demoKey?: string, listState?: any[], setListState?: any): Promise<boolean> => {
     if (connectionMode === 'backend') {
       try {
@@ -621,7 +631,7 @@ function App() {
       addToast(`Error en la operación del servidor para ${ep}.`, 'error')
       return false
     } else {
-      // Local
+      // Operacion en modo demo (LocalStorage)
       let updatedList = [...(listState || [])]
       if (action === 'add') {
         const newId = updatedList.length ? Math.max(...updatedList.map(i => i.id || 0)) + 1 : 1
@@ -638,19 +648,22 @@ function App() {
     }
   }
 
-  // Wrappers
+  // Wrappers para CRUD de clientes
   const handleAddClient = (c: Client) => executeGenericCrud('clientes', 'add', undefined, c, 'ps_clients', clients, setClients)
   const handleEditClient = (id: number, c: Client) => executeGenericCrud('clientes', 'edit', id, c, 'ps_clients', clients, setClients)
   const handleRemoveClient = (id: number) => executeGenericCrud('clientes', 'remove', id, undefined, 'ps_clients', clients, setClients)
 
+  // Wrappers para CRUD de proveedores
   const handleAddSupplier = (s: Supplier) => executeGenericCrud('proveedores', 'add', undefined, s, 'ps_suppliers', suppliers, setSuppliers)
   const handleEditSupplier = (id: number, s: Supplier) => executeGenericCrud('proveedores', 'edit', id, s, 'ps_suppliers', suppliers, setSuppliers)
   const handleRemoveSupplier = (id: number) => executeGenericCrud('proveedores', 'remove', id, undefined, 'ps_suppliers', suppliers, setSuppliers)
 
+  // Wrappers para CRUD de categorias
   const handleAddCategory = (c: Category) => executeGenericCrud('categorias', 'add', undefined, c, 'ps_categories', categories, setCategories)
   const handleEditCategory = (id: number, c: Category) => executeGenericCrud('categorias', 'edit', id, c, 'ps_categories', categories, setCategories)
   const handleRemoveCategory = (id: number) => executeGenericCrud('categorias', 'remove', id, undefined, 'ps_categories', categories, setCategories)
 
+  // Wrappers para CRUD de usuarios del sistema
   const handleAddUser = (u: SystemUser) => executeGenericCrud('usuarios', 'add', undefined, u, 'ps_users', users, setUsers)
   const handleEditUser = (id: number, u: SystemUser) => executeGenericCrud('usuarios', 'edit', id, u, 'ps_users', users, setUsers)
   const handleRemoveUser = (id: number) => executeGenericCrud('usuarios', 'remove', id, undefined, 'ps_users', users, setUsers)
