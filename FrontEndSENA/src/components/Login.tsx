@@ -1,16 +1,26 @@
 // Componente de Login / Inicio de Sesion
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
+import { API_CONFIGURED, apiFetch, setAuthToken } from '../api'
 
 // Props del componente
 interface LoginProps {
+  allowDemo: boolean
   onLoginSuccess: (user: { id: number; nombre: string; email: string; rol: string; isDemo: boolean }) => void
 }
 
-function Login({ onLoginSuccess }: LoginProps) {
+interface DemoUser {
+  id?: number
+  nombre: string
+  email: string
+  password?: string
+  rol: string
+}
+
+function Login({ allowDemo, onLoginSuccess }: LoginProps) {
   // Estado del formulario
-  const [email, setEmail] = useState('admin@mail.com')
-  const [password, setPassword] = useState('123456')
+  const [email, setEmail] = useState('pruebas@papelsoft.com')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [isBackendAlive, setIsBackendAlive] = useState<boolean | null>(null)
@@ -18,19 +28,21 @@ function Login({ onLoginSuccess }: LoginProps) {
   // Verifica si el backend esta activo al cargar el componente
   useEffect(() => {
     const checkBackend = async () => {
+      if (!API_CONFIGURED) {
+        setIsBackendAlive(false)
+        return
+      }
+
       try {
         const controller = new AbortController()
         const id = setTimeout(() => controller.abort(), 2000)
         
-        const res = await fetch('http://localhost:8080/api/usuarios', {
+        const res = await apiFetch('health', {
           signal: controller.signal
         })
         clearTimeout(id)
-        if (res.ok || res.status === 401 || res.status === 403 || res.status === 404) {
-          setIsBackendAlive(true)
-        } else {
-          setIsBackendAlive(false)
-        }
+        const data = res.ok ? await res.json() : null
+        setIsBackendAlive(data?.status === 'UP' && data?.database === 'UP')
       } catch {
         setIsBackendAlive(false)
       }
@@ -44,17 +56,17 @@ function Login({ onLoginSuccess }: LoginProps) {
     setErrorMsg('')
     setLoading(true)
 
-    // Intenta login con backend si esta disponible
     if (isBackendAlive) {
       try {
-        const res = await fetch('http://localhost:8080/api/usuarios/login', {
+        const res = await apiFetch('usuarios/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         })
         
         const data = await res.json()
-        if (data.id) {
+        if (res.ok && data.id !== undefined && data.id !== null && typeof data.token === 'string') {
+          setAuthToken(data.token)
           onLoginSuccess({
             id: data.id,
             nombre: data.nombre,
@@ -63,43 +75,58 @@ function Login({ onLoginSuccess }: LoginProps) {
             isDemo: false
           })
         } else {
-          setErrorMsg(data.error || 'Credenciales incorrectas')
+          setErrorMsg(data.error || 'El servidor no pudo iniciar la sesión.')
         }
       } catch (err) {
         console.error('Error al conectar con backend:', err)
-        setErrorMsg('Error de conexión con el servidor. Intente usar el Modo Demostración.')
+        setErrorMsg(allowDemo
+          ? 'Error de conexión con el servidor. También puedes iniciar en Modo Demostración.'
+          : 'Error de conexión con el servidor. Verifica la disponibilidad de la API.')
       } finally {
         setLoading(false)
       }
-    } else {
-      // Login simulado para modo demo
+    } else if (allowDemo) {
       setTimeout(() => {
-        setLoading(false)
-        if (email === 'admin@mail.com' && password === '123456') {
-          onLoginSuccess({
-            id: 999,
-            nombre: 'Administrador Demo',
-            email: 'admin@mail.com',
-            rol: 'Administrador',
-            isDemo: true
-          })
-        } else if (email.includes('@') && password.length >= 4) {
-          onLoginSuccess({
-            id: 998,
-            nombre: email.split('@')[0],
-            email: email,
-            rol: 'Vendedor',
-            isDemo: true
-          })
-        } else {
-          setErrorMsg('Para ingresar en Modo Demo use cualquier correo y clave mayor a 4 caracteres.')
+        try {
+          const storedUsers = localStorage.getItem('ps_users')
+          const demoUsers = storedUsers ? JSON.parse(storedUsers) as DemoUser[] : [
+            { id: 999, nombre: 'Administrador Demo', email: 'admin@mail.com', password: '123456', rol: 'Administrador' },
+            { id: 998, nombre: 'Juan Vendedor', email: 'juan@mail.com', password: '123', rol: 'Vendedor' }
+          ]
+          const matchedUser = demoUsers.find((user) =>
+            user.email.toLocaleLowerCase('es') === email.trim().toLocaleLowerCase('es') &&
+            user.password === password
+          )
+
+          if (matchedUser) {
+            onLoginSuccess({
+              id: matchedUser.id ?? 998,
+              nombre: matchedUser.nombre,
+              email: matchedUser.email,
+              rol: matchedUser.rol || 'Vendedor',
+              isDemo: true
+            })
+          } else {
+            setErrorMsg('Correo o contraseña incorrectos. También puedes ingresar con el botón de demostración.')
+          }
+        } catch (err) {
+          console.error('Error al validar la cuenta local:', err)
+          setErrorMsg('No se pudieron leer las cuentas locales. Restablece los datos de demostración e inténtalo de nuevo.')
+        } finally {
+          setLoading(false)
         }
       }, 800)
+    } else {
+      setLoading(false)
+      setErrorMsg(API_CONFIGURED
+        ? 'No hay conexión con la API y la base de datos. Verifica que el backend esté disponible.'
+        : 'La URL de la API no está configurada. Define VITE_API_URL antes de iniciar sesión.')
     }
   }
 
   // Acceso directo al modo demo sin credenciales
   const handleDemoBypass = () => {
+    if (!allowDemo) return
     onLoginSuccess({
       id: 999,
       nombre: 'Administrador Demo',
@@ -145,14 +172,14 @@ function Login({ onLoginSuccess }: LoginProps) {
             <span className={`status-dot ${isBackendAlive ? 'online' : 'offline'}`} />
             {isBackendAlive === null && <span>Verificando conexión...</span>}
             {isBackendAlive === true && <span>Base de Datos: Conectado</span>}
-            {isBackendAlive === false && <span>Base de Datos: Desconectado (Usando Demo)</span>}
+            {isBackendAlive === false && <span>{API_CONFIGURED ? 'API / Base de datos: Desconectada' : 'API sin configurar'}</span>}
           </div>
         </div>
 
         {/* Lado Derecho: Formulario */}
         <div className="login-form-side">
           <h3>Iniciar Sesión</h3>
-          <p>Digita tus credenciales para acceder al sistema.</p>
+          <p>Ingresa las credenciales de tu cuenta para acceder al sistema.</p>
 
           {errorMsg && (
             <div className="badge badge-danger" style={{ display: 'flex', padding: '12px 16px', borderRadius: '12px', fontSize: '0.85rem', marginBottom: '20px', textTransform: 'none', fontWeight: 600 }}>
@@ -188,9 +215,10 @@ function Login({ onLoginSuccess }: LoginProps) {
                   type="email"
                   className="form-control"
                   style={{ paddingLeft: '46px' }}
-                  placeholder="usuario@dominio.com"
+                  placeholder="correo@empresa.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -221,6 +249,7 @@ function Login({ onLoginSuccess }: LoginProps) {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   required
                 />
               </div>
@@ -233,18 +262,18 @@ function Login({ onLoginSuccess }: LoginProps) {
 
           <div className="login-actions-footer">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '12px 0', color: 'var(--text-light)', fontSize: '0.8rem' }}>
-              <span>Ó también puedes probar</span>
+              {allowDemo && <span>Ó también puedes probar</span>}
             </div>
             
-            <button type="button" className="btn btn-demo-mode" onClick={handleDemoBypass} style={{ width: '100%', padding: '12px' }}>
+            {allowDemo && <button type="button" className="btn btn-demo-mode" onClick={handleDemoBypass} style={{ width: '100%', padding: '12px' }} disabled={loading}>
               <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
               Iniciar en Modo Demostración
-            </button>
-            <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '8px' }}>
-              * No requiere prender MySQL ni Spring Boot. Guarda los datos localmente.
-            </p>
+            </button>}
+            {allowDemo && <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-light)', marginTop: '8px' }}>
+              * La demostración guarda cambios en este navegador y no en MySQL.
+            </p>}
           </div>
         </div>
       </div>

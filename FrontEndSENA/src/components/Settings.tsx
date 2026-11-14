@@ -22,7 +22,7 @@ interface User {
 interface SettingsProps {
   categories: Category[]
   users: User[]
-  connectionMode: 'backend' | 'demo'
+  connectionMode: 'backend' | 'demo' | 'offline'
   onAddCategory: (c: Category) => Promise<boolean>
   onEditCategory: (id: number, c: Category) => Promise<boolean>
   onRemoveCategory: (id: number) => Promise<boolean>
@@ -336,19 +336,23 @@ function Settings({
               <span className={`status-dot ${connectionMode === 'backend' ? 'online' : 'offline'}`} style={{ width: 14, height: 14 }} />
               <div>
                 <p style={{ fontWeight: 700 }}>
-                  {connectionMode === 'backend' ? 'MODO SERVIDOR ACTIVO' : 'MODO DEMOSTRACIÓN'}
+                  {connectionMode === 'backend'
+                    ? 'BASE DE DATOS CONECTADA'
+                    : connectionMode === 'demo' ? 'MODO DEMOSTRACIÓN' : 'API / BASE DE DATOS SIN CONEXIÓN'}
                 </p>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   {connectionMode === 'backend'
                     ? 'La aplicación se está comunicando con la base de datos MySQL mediante Spring Boot.'
-                    : 'La base de datos MySQL no está disponible. Usando almacenamiento interno del navegador.'}
+                    : connectionMode === 'demo'
+                      ? 'La base de datos MySQL no está disponible. Usando almacenamiento interno del navegador.'
+                      : 'Verifica la URL de la API, sus variables de entorno y el estado de MySQL.'}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Card de Acciones de Prueba */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {connectionMode === 'demo' && <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontFamily: 'var(--font-title)', fontWeight: 700 }}>Herramientas de Desarrollador</h3>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
               Si estás en Modo Demo y quieres restablecer las cantidades iniciales, borrar tus ventas registradas de prueba y limpiar la papelera local:
@@ -364,7 +368,7 @@ function Settings({
             >
               🔄 Restaurar Base de Datos Demo
             </button>
-          </div>
+          </div>}
         </div>
       )}
 

@@ -7,6 +7,7 @@ import Sales from './components/Sales'
 import Purchases from './components/Purchases'
 import Contacts from './components/Contacts'
 import Settings from './components/Settings'
+import { apiFetch, DEMO_ENABLED, setAuthToken } from './api'
 
 // Interfaz para Usuario del sistema
 interface User {
@@ -166,7 +167,7 @@ function App() {
   // Sidebar en movil
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false)
   // Modo de conexion (backend o demo local)
-  const [connectionMode, setConnectionMode] = useState<'backend' | 'demo'>('demo')
+  const [connectionMode, setConnectionMode] = useState<'backend' | 'demo' | 'offline'>('offline')
 
   // Estados globales de datos
   const [products, setProducts] = useState<Product[]>([])
@@ -224,31 +225,36 @@ function App() {
       try {
         const controller = new AbortController()
         const id = setTimeout(() => controller.abort(), 2000)
-        const res = await fetch('http://localhost:8080/api/productos', { signal: controller.signal })
+        const res = await apiFetch('health', { signal: controller.signal })
         clearTimeout(id)
-        
-        if (res.ok) {
-          setConnectionMode('backend')
-          await loadFromBackend()
-        } else {
+        if (!res.ok) throw new Error(`API respondió con estado ${res.status}`)
+        const health = await res.json()
+        if (health.status !== 'UP' || health.database !== 'UP') {
+          throw new Error('La base de datos no está disponible')
+        }
+        setConnectionMode('backend')
+        await loadFromBackend()
+      } catch (error) {
+        console.error('Error conectando con la base de datos:', error)
+        if (DEMO_ENABLED && currentUser?.isDemo) {
           setConnectionMode('demo')
           loadFromDemo()
+        } else {
+          setConnectionMode('offline')
+          addToast('No se pudo conectar con la API / base de datos. No se usarán datos demo.', 'error')
         }
-      } catch {
-        setConnectionMode('demo')
-        loadFromDemo()
       }
     }
 
     if (currentUser) {
-      if (currentUser.isDemo) {
+      if (DEMO_ENABLED && currentUser.isDemo) {
         setConnectionMode('demo')
         loadFromDemo()
       } else {
         checkAndLoad()
       }
     }
-  }, [currentUser])
+  }, [currentUser, addToast])
 
   // Carga datos desde el backend Spring Boot
   const loadFromBackend = async () => {
@@ -259,7 +265,11 @@ function App() {
       ]
       
       const responses = await Promise.all(
-        endpoints.map(ep => fetch(`http://localhost:8080/api/${ep}`).then(r => r.json()))
+        endpoints.map(async ep => {
+          const response = await apiFetch(ep)
+          if (!response.ok) throw new Error(`No se pudo cargar ${ep}: HTTP ${response.status}`)
+          return response.json()
+        })
       )
 
       setProducts(responses[0])
@@ -273,9 +283,8 @@ function App() {
       setUsers(responses[8])
     } catch (err) {
       console.error('Error cargando del backend:', err)
-      addToast('Error al leer datos del servidor. Usando datos demo.', 'warning')
-      setConnectionMode('demo')
-      loadFromDemo()
+      addToast('Error al leer los datos del servidor. No se cargarán datos demo.', 'error')
+      setConnectionMode('offline')
     }
   }
 
@@ -326,15 +335,20 @@ function App() {
 
   // Maneja el cierre de sesion
   const handleLogout = () => {
+    setAuthToken(null)
     setCurrentUser(null)
     setActiveTab('dashboard')
   }
 
   // CRUD: Agregar un nuevo producto
   const handleAddProduct = async (p: Product): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
-        const res = await fetch('http://localhost:8080/api/productos', {
+        const res = await apiFetch('productos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(p)
@@ -361,9 +375,13 @@ function App() {
 
   // CRUD: Editar un producto existente
   const handleEditProduct = async (id: number, p: Product): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
-        const res = await fetch(`http://localhost:8080/api/productos/${id}`, {
+        const res = await apiFetch(`productos/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(p)
@@ -389,9 +407,13 @@ function App() {
 
   // CRUD: Eliminar un producto
   const handleRemoveProduct = async (id: number): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
-        const res = await fetch(`http://localhost:8080/api/productos/${id}`, { method: 'DELETE' })
+        const res = await apiFetch(`productos/${id}`, { method: 'DELETE' })
         if (res.ok) {
           await loadFromBackend()
           addToast('Producto eliminado del servidor.', 'success')
@@ -413,10 +435,14 @@ function App() {
 
   // Registra una nueva venta (con detalles y descuento de stock)
   const handleAddSale = async (saleData: { clienteId?: number; total: number; details: Omit<SaleDetail, 'id'>[] }): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
         // Crea la venta en el backend
-        const resVenta = await fetch('http://localhost:8080/api/ventas', {
+        const resVenta = await apiFetch('ventas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -432,7 +458,7 @@ function App() {
           // Guarda los detalles y actualiza stock en paralelo
           await Promise.all([
             ...saleData.details.map(d =>
-              fetch('http://localhost:8080/api/detalle-ventas', {
+              apiFetch('detalle-ventas', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...d, ventaId: ventaCreada.id })
@@ -443,7 +469,7 @@ function App() {
               const prod = products.find(p => p.id === d.productoId)
               if (prod) {
                 const stockNuevo = prod.stock - d.cantidad
-                return fetch(`http://localhost:8080/api/productos/${d.productoId}`, {
+                return apiFetch(`productos/${d.productoId}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ ...prod, stock: stockNuevo >= 0 ? stockNuevo : 0 })
@@ -508,10 +534,14 @@ function App() {
 
   // Registra una nueva compra (con detalles y aumento de stock)
   const handleAddPurchase = async (purchaseData: { proveedorId?: number; total: number; details: Omit<PurchaseDetail, 'id'>[] }): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
         // Crea la compra en el backend
-        const resCompra = await fetch('http://localhost:8080/api/compras', {
+        const resCompra = await apiFetch('compras', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -527,7 +557,7 @@ function App() {
           // Guarda los detalles y suma stock en paralelo
           await Promise.all([
             ...purchaseData.details.map(d =>
-              fetch('http://localhost:8080/api/detalle-compras', {
+              apiFetch('detalle-compras', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ...d, compraId: compraCreada.id })
@@ -538,7 +568,7 @@ function App() {
               const prod = products.find(p => p.id === d.productoId)
               if (prod) {
                 const stockNuevo = prod.stock + d.cantidad
-                return fetch(`http://localhost:8080/api/productos/${d.productoId}`, {
+                return apiFetch(`productos/${d.productoId}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ ...prod, stock: stockNuevo })
@@ -602,23 +632,27 @@ function App() {
 
   // CRUD generico: Clientes, Proveedores, Categorias, Usuarios
   const executeGenericCrud = async (ep: string, action: 'add' | 'edit' | 'remove', id?: number, bodyData?: any, demoKey?: string, listState?: any[], setListState?: any): Promise<boolean> => {
+    if (connectionMode === 'offline') {
+      addToast('No hay conexión con la base de datos.', 'error')
+      return false
+    }
     if (connectionMode === 'backend') {
       try {
         let res
         if (action === 'add') {
-          res = await fetch(`http://localhost:8080/api/${ep}`, {
+          res = await apiFetch(ep, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bodyData)
           })
         } else if (action === 'edit') {
-          res = await fetch(`http://localhost:8080/api/${ep}/${id}`, {
+          res = await apiFetch(`${ep}/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bodyData)
           })
         } else {
-          res = await fetch(`http://localhost:8080/api/${ep}/${id}`, { method: 'DELETE' })
+          res = await apiFetch(`${ep}/${id}`, { method: 'DELETE' })
         }
         if (res.ok) {
           await loadFromBackend()
@@ -671,7 +705,7 @@ function App() {
 
   // Si no ha iniciado sesión, mostrar la pantalla de Login
   if (!currentUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />
+    return <Login allowDemo={DEMO_ENABLED} onLoginSuccess={handleLoginSuccess} />
   }
 
   return (
@@ -789,7 +823,7 @@ function App() {
             {/* Estado de la Base de Datos */}
             <div className="connection-status">
               <span className={`status-dot ${connectionMode === 'backend' ? 'online' : 'offline'}`} />
-              <span>{connectionMode === 'backend' ? 'MySQL' : 'Demo Local'}</span>
+              <span>{connectionMode === 'backend' ? 'MySQL' : connectionMode === 'demo' ? 'Demo Local' : 'API sin conexión'}</span>
             </div>
           </div>
         </header>

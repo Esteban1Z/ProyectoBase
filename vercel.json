@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm --prefix FrontEndSENA ci",
+  "buildCommand": "npm --prefix FrontEndSENA run build",
+  "outputDirectory": "FrontEndSENA/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

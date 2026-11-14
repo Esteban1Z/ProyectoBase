@@ -10,7 +10,7 @@ CREATE TABLE usuarios (
     nombre VARCHAR(100),
     email VARCHAR(100) UNIQUE,
     password VARCHAR(255),
-    rol ENUM('admin', 'vendedor'),
+    rol ENUM('admin', 'vendedor', 'gestor') NOT NULL DEFAULT 'vendedor',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

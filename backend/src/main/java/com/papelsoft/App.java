@@ -3,10 +3,21 @@ package com.papelsoft;
 
 // Importaciones de Spring Boot y JPA
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
@@ -23,9 +34,99 @@ public class App {
     @Autowired
     private EntityManager em;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
+
     // Punto de entrada de la aplicacion
     public static void main(String[] args) {
         SpringApplication.run(App.class, args);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer(
+            @Value("${app.cors.allowed-origin-patterns}") String allowedOrigins) {
+        String[] originPatterns = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toArray(String[]::new);
+
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/api/**")
+                        .allowedOriginPatterns(originPatterns)
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedHeaders("Content-Type", "Authorization");
+            }
+        };
+    }
+
+    @Bean
+    public CommandLineRunner seedTestUser(
+            PlatformTransactionManager transactionManager,
+            @Value("${app.seed.test-user.enabled:false}") boolean enabled,
+            @Value("${app.seed.test-user.email:}") String email,
+            @Value("${app.seed.test-user.password:}") String password) {
+        return args -> {
+            if (!enabled) return;
+            if (email.isBlank() || password.isBlank()) {
+                throw new IllegalStateException(
+                        "SEED_TEST_USER_EMAIL y SEED_TEST_USER_PASSWORD son obligatorios cuando SEED_TEST_USER_ENABLED=true");
+            }
+
+            new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+                List<Usuario> existingUsers = em.createQuery(
+                                "from Usuario where lower(email) = :email", Usuario.class)
+                        .setParameter("email", email.toLowerCase(Locale.ROOT))
+                        .getResultList();
+                if (!existingUsers.isEmpty()) return;
+
+                Usuario user = new Usuario();
+                user.nombre = "Usuario de pruebas";
+                user.email = email.trim().toLowerCase(Locale.ROOT);
+                user.password = passwordEncoder.encode(password);
+                user.rol = "admin";
+                user.createdAt = LocalDateTime.now();
+                em.persist(user);
+            });
+        };
+    }
+
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        em.createNativeQuery("SELECT 1").getSingleResult();
+        return Map.of("status", "UP", "database", "UP");
+    }
+
+    private String normalizeRole(String role) {
+        if ("admin".equalsIgnoreCase(role) || "administrador".equalsIgnoreCase(role)) return "admin";
+        if ("gestor".equalsIgnoreCase(role)) return "gestor";
+        if ("vendedor".equalsIgnoreCase(role)) return "vendedor";
+        throw new IllegalArgumentException("Rol de usuario no válido");
+    }
+
+    private String displayRole(String role) {
+        if ("admin".equalsIgnoreCase(role) || "administrador".equalsIgnoreCase(role)) return "Administrador";
+        if ("gestor".equalsIgnoreCase(role)) return "Gestor";
+        return "Vendedor";
+    }
+
+    private Map<String, Object> userResponse(Usuario user) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.id);
+        response.put("nombre", user.nombre);
+        response.put("email", user.email);
+        response.put("rol", displayRole(user.rol));
+        response.put("createdAt", user.createdAt);
+        return response;
     }
 
     // Entidad: Usuarios del sistema
@@ -183,22 +284,29 @@ public class App {
 
     // CRUD: Listar todos los usuarios
     @GetMapping("/usuarios")
-    public List listarUsuarios() {
-        return em.createQuery("from Usuario").getResultList();
+    public List<Map<String, Object>> listarUsuarios() {
+        List<Usuario> users = em.createQuery("from Usuario", Usuario.class).getResultList();
+        return users.stream().map(this::userResponse).toList();
     }
 
     // CRUD: Obtener un usuario por ID
     @GetMapping("/usuarios/{id}")
     public Object obtenerUsuario(@PathVariable Integer id) {
-        return em.find(Usuario.class, id);
+        Usuario user = em.find(Usuario.class, id);
+        return user == null ? null : userResponse(user);
     }
 
     // CRUD: Crear un nuevo usuario
     @PostMapping("/usuarios")
     public Object crearUsuario(@RequestBody Usuario u) {
+        u.rol = normalizeRole(u.rol);
+        if (u.password == null || u.password.isBlank()) {
+            throw new IllegalArgumentException("La contraseña es obligatoria");
+        }
+        u.password = passwordEncoder.encode(u.password);
         u.createdAt = LocalDateTime.now();
         em.persist(u);
-        return u;
+        return userResponse(u);
     }
 
     // CRUD: Actualizar un usuario existente
@@ -208,9 +316,11 @@ public class App {
         if (e == null) return null;
         e.nombre = u.nombre;
         e.email = u.email;
-        e.password = u.password;
-        e.rol = u.rol;
-        return e;
+        e.rol = normalizeRole(u.rol);
+        if (u.password != null && !u.password.isBlank()) {
+            e.password = passwordEncoder.encode(u.password);
+        }
+        return userResponse(e);
     }
 
     // CRUD: Eliminar un usuario
@@ -222,17 +332,31 @@ public class App {
 
     // Login: autenticar usuario por email y password
     @PostMapping("/usuarios/login")
-    public Map login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> body) {
         String email = body.get("email");
         String password = body.get("password");
-        List<Usuario> list = em.createQuery("from Usuario where email = :e", Usuario.class)
-                .setParameter("e", email)
-                .getResultList();
-        if (!list.isEmpty() && list.get(0).password.equals(password)) {
-            Usuario u = list.get(0);
-            return Map.of("id", u.id, "nombre", u.nombre, "email", u.email, "rol", u.rol);
+        if (email == null || password == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Credenciales inválidas"));
         }
-        return Map.of("error", "Credenciales invalidas");
+        List<Usuario> list = em.createQuery("from Usuario where email = :e", Usuario.class)
+                .setParameter("e", email.trim().toLowerCase(Locale.ROOT))
+                .getResultList();
+        if (!list.isEmpty()) {
+            Usuario u = list.get(0);
+            boolean encodedPassword = u.password != null && u.password.startsWith("$2");
+            boolean passwordMatches = encodedPassword
+                    ? passwordEncoder.matches(password, u.password)
+                    : Objects.equals(password, u.password);
+            if (passwordMatches) {
+                if (!encodedPassword) u.password = passwordEncoder.encode(password);
+                Map<String, Object> response = userResponse(u);
+                response.put("token", jwtService.createToken(u.email, u.rol));
+                return ResponseEntity.ok(response);
+            }
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", "Credenciales inválidas"));
     }
 
     // CRUD: Listar todas las categorias

@@ -678,6 +678,47 @@ input, button, select, textarea {
   margin-bottom: 20px;
 }
 
+.inventory-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.inventory-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inventory-stat span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inventory-stat strong {
+  font-family: var(--font-title);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  overflow-wrap: anywhere;
+}
+
+.inventory-stat .inventory-stat-warning {
+  color: var(--warning);
+}
+
+.form-error {
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-xs);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
 .search-box {
   position: relative;
   max-width: 320px;

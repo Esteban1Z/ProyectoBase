@@ -47,6 +47,8 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
   const [stock, setStock] = useState<number | ''>('')
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [barcode, setBarcode] = useState('')
+  const [formError, setFormError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   // Limpia los campos del formulario
   const clearForm = () => {
@@ -57,6 +59,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     setCategoryId(categories.length > 0 ? Number(categories[0].id) : '')
     setBarcode('')
     setEditingId(null)
+    setFormError('')
   }
 
   // Abre el modal para agregar producto
@@ -73,17 +76,19 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     setStock(p.stock)
     setCategoryId(p.categoriaId !== undefined ? p.categoriaId : '')
     setBarcode(p.codigoBarras || '')
-    setEditingId(p.id || null)
+    setEditingId(p.id ?? null)
+    setFormError('')
     setIsEditModalOpen(true)
   }
 
   // Filtra productos por busqueda y categoria
   const filteredProducts = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase('es')
     return products.filter((p) => {
       const matchesSearch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (p.descripcion && p.descripcion.toLowerCase().includes(search.toLowerCase())) ||
-        (p.codigoBarras && p.codigoBarras.includes(search))
+        p.nombre.toLocaleLowerCase('es').includes(normalizedSearch) ||
+        (p.descripcion && p.descripcion.toLocaleLowerCase('es').includes(normalizedSearch)) ||
+        (p.codigoBarras && p.codigoBarras.toLocaleLowerCase('es').includes(normalizedSearch))
 
       const matchesCategory =
         selectedCategoryFilter === 'all' ||
@@ -93,6 +98,13 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     })
   }, [products, search, selectedCategoryFilter])
 
+  const inventorySummary = useMemo(() => ({
+    productCount: products.length,
+    unitsInStock: products.reduce((total, product) => total + product.stock, 0),
+    lowStockCount: products.filter((product) => product.stock <= 10).length,
+    inventoryValue: products.reduce((total, product) => total + product.precio * product.stock, 0)
+  }), [products])
+
   // Obtiene el nombre de una categoria por su ID
   const getCategoryName = (catId?: number) => {
     if (catId === undefined) return 'Sin categoría'
@@ -100,50 +112,97 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
     return found ? found.nombre : `Categoría #${catId}`
   }
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
+  const buildProductData = (): Product | null => {
+    const normalizedName = name.trim()
+    const normalizedBarcode = barcode.trim()
+    const parsedPrice = price === '' ? Number.NaN : Number(price)
+    const parsedStock = stock === '' ? Number.NaN : Number(stock)
 
-    const productData: Product = {
-      nombre: name.trim(),
-      descripcion: description.trim(),
-      precio: price === '' ? 0 : Number(price),
-      stock: stock === '' ? 0 : Number(stock),
-      categoriaId: categoryId === '' ? undefined : Number(categoryId),
-      codigoBarras: barcode.trim() || undefined
+    if (!normalizedName) {
+      setFormError('Escribe el nombre del producto.')
+      return null
+    }
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      setFormError('Ingresa un precio válido mayor o igual a cero.')
+      return null
+    }
+    if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+      setFormError('El stock debe ser un número entero mayor o igual a cero.')
+      return null
+    }
+    if (normalizedBarcode && products.some((product) =>
+      product.id !== editingId &&
+      product.codigoBarras?.trim().toLocaleLowerCase('es') === normalizedBarcode.toLocaleLowerCase('es')
+    )) {
+      setFormError('Ya existe un producto con ese código de barras.')
+      return null
     }
 
-    const success = await onAddProduct(productData)
-    if (success) {
-      setIsAddModalOpen(false)
-      clearForm()
+    setFormError('')
+    return {
+      nombre: normalizedName,
+      descripcion: description.trim(),
+      precio: parsedPrice,
+      stock: parsedStock,
+      categoriaId: categoryId === '' ? undefined : Number(categoryId),
+      codigoBarras: normalizedBarcode || undefined
+    }
+  }
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const productData = buildProductData()
+    if (!productData) return
+
+    setIsSaving(true)
+    try {
+      const success = await onAddProduct(productData)
+      if (success) {
+        setIsAddModalOpen(false)
+        clearForm()
+      } else {
+        setFormError('No fue posible guardar el producto. Revisa la conexión e inténtalo de nuevo.')
+      }
+    } catch (error) {
+      console.error('Error al guardar el producto:', error)
+      setFormError('Ocurrió un error al guardar el producto. Inténtalo de nuevo.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (editingId === null || !name.trim()) return
+    if (editingId === null) return
+    const productData = buildProductData()
+    if (!productData) return
 
-    const productData: Product = {
-      nombre: name.trim(),
-      descripcion: description.trim(),
-      precio: price === '' ? 0 : Number(price),
-      stock: stock === '' ? 0 : Number(stock),
-      categoriaId: categoryId === '' ? undefined : Number(categoryId),
-      codigoBarras: barcode.trim() || undefined
-    }
-
-    const success = await onEditProduct(editingId, productData)
-    if (success) {
-      setIsEditModalOpen(false)
-      clearForm()
+    setIsSaving(true)
+    try {
+      const success = await onEditProduct(editingId, productData)
+      if (success) {
+        setIsEditModalOpen(false)
+        clearForm()
+      } else {
+        setFormError('No fue posible actualizar el producto. Revisa la conexión e inténtalo de nuevo.')
+      }
+    } catch (error) {
+      console.error('Error al actualizar el producto:', error)
+      setFormError('Ocurrió un error al actualizar el producto. Inténtalo de nuevo.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleDelete = async (id?: number) => {
     if (!id) return
     if (window.confirm('¿Está seguro de eliminar este producto del inventario?')) {
-      await onRemoveProduct(id)
+      try {
+        await onRemoveProduct(id)
+      } catch (error) {
+        console.error('Error al eliminar el producto:', error)
+        window.alert('No fue posible eliminar el producto. Inténtalo de nuevo.')
+      }
     }
   }
 
@@ -158,7 +217,25 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      
+      <div className="inventory-overview">
+        <div className="card inventory-stat">
+          <span>Productos registrados</span>
+          <strong>{inventorySummary.productCount}</strong>
+        </div>
+        <div className="card inventory-stat">
+          <span>Unidades disponibles</span>
+          <strong>{inventorySummary.unitsInStock.toLocaleString('es-CO')}</strong>
+        </div>
+        <div className="card inventory-stat">
+          <span>Alertas de bajo stock</span>
+          <strong className={inventorySummary.lowStockCount > 0 ? 'inventory-stat-warning' : ''}>{inventorySummary.lowStockCount}</strong>
+        </div>
+        <div className="card inventory-stat">
+          <span>Valor del inventario</span>
+          <strong>{formatCurrency(inventorySummary.inventoryValue)}</strong>
+        </div>
+      </div>
+
       {/* Barra de Filtros */}
       <div className="card control-bar">
         <div className="search-box">
@@ -172,6 +249,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
             placeholder="Buscar por nombre o código..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label="Buscar productos por nombre, descripción o código de barras"
           />
         </div>
 
@@ -183,7 +261,7 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
             value={selectedCategoryFilter}
             onChange={(e) => setSelectedCategoryFilter(e.target.value)}
           >
-            <option value="all">Todas las Categorías</option>
+            <option value="all">Todas las categorías</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id?.toString()}>
                 {c.nombre}
@@ -293,12 +371,13 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
           <div className="modal-content">
             <div className="modal-header">
               <h2>Agregar Nuevo Producto</h2>
-              <button className="btn btn-icon" onClick={() => setIsAddModalOpen(false)}>
+              <button type="button" className="btn btn-icon" aria-label="Cerrar formulario" onClick={() => { setIsAddModalOpen(false); setFormError('') }}>
                 <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
             <form onSubmit={handleAddSubmit}>
               <div className="modal-body">
+                {formError && <p className="form-error" role="alert">{formError}</p>}
                 <div className="form-group">
                   <label htmlFor="name">Nombre del Producto *</label>
                   <input id="name" type="text" className="form-control" placeholder="Ej. Cuaderno Arvejas" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -310,11 +389,11 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="form-group">
                     <label htmlFor="price">Precio Venta (COP) *</label>
-                    <input id="price" type="number" min="0" className="form-control" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))} required />
+                    <input id="price" type="number" min="0" step="1" className="form-control" placeholder="0" value={price} onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))} required />
                   </div>
                   <div className="form-group">
                     <label htmlFor="stock">Stock Físico *</label>
-                    <input id="stock" type="number" min="0" className="form-control" placeholder="0" value={stock} onChange={(e) => setStock(e.target.value === '' ? '' : Number(e.target.value))} required />
+                    <input id="stock" type="number" min="0" step="1" className="form-control" placeholder="0" value={stock} onChange={(e) => setStock(e.target.value === '' ? '' : Number(e.target.value))} required />
                   </div>
                 </div>
                 <div className="form-group">
@@ -332,8 +411,8 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAddModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary">Registrar</button>
+                <button type="button" className="btn btn-secondary" disabled={isSaving} onClick={() => { setIsAddModalOpen(false); setFormError('') }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? 'Guardando...' : 'Registrar producto'}</button>
               </div>
             </form>
           </div>
@@ -346,12 +425,13 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
           <div className="modal-content">
             <div className="modal-header">
               <h2>Editar Producto</h2>
-              <button className="btn btn-icon" onClick={() => setIsEditModalOpen(false)}>
+              <button type="button" className="btn btn-icon" aria-label="Cerrar formulario" onClick={() => { setIsEditModalOpen(false); setFormError('') }}>
                 <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
             <form onSubmit={handleEditSubmit}>
               <div className="modal-body">
+                {formError && <p className="form-error" role="alert">{formError}</p>}
                 <div className="form-group">
                   <label htmlFor="edit_name">Nombre del Producto *</label>
                   <input id="edit_name" type="text" className="form-control" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -363,11 +443,11 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div className="form-group">
                     <label htmlFor="edit_price">Precio Venta (COP) *</label>
-                    <input id="edit_price" type="number" min="0" className="form-control" value={price} onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))} required />
+                    <input id="edit_price" type="number" min="0" step="1" className="form-control" value={price} onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))} required />
                   </div>
                   <div className="form-group">
                     <label htmlFor="edit_stock">Stock Físico *</label>
-                    <input id="edit_stock" type="number" min="0" className="form-control" value={stock} onChange={(e) => setStock(e.target.value === '' ? '' : Number(e.target.value))} required />
+                    <input id="edit_stock" type="number" min="0" step="1" className="form-control" value={stock} onChange={(e) => setStock(e.target.value === '' ? '' : Number(e.target.value))} required />
                   </div>
                 </div>
                 <div className="form-group">
@@ -385,8 +465,8 @@ function Inventory({ products, categories, onAddProduct, onEditProduct, onRemove
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsEditModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary">Guardar Cambios</button>
+                <button type="button" className="btn btn-secondary" disabled={isSaving} onClick={() => { setIsEditModalOpen(false); setFormError('') }}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={isSaving}>{isSaving ? 'Guardando...' : 'Guardar cambios'}</button>
               </div>
             </form>
           </div>
