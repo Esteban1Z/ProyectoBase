@@ -17,7 +17,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import jakarta.persistence.*;
+import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.*;
@@ -121,110 +121,6 @@ public class App {
         response.put("rol", displayRole(user.rol));
         response.put("createdAt", user.createdAt);
         return response;
-    }
-
-    // Entidad: Usuarios del sistema
-    @Entity @Table(name = "usuarios")
-    public static class Usuario {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        public String nombre, email, password, rol;
-        @Column(name = "created_at")
-        public LocalDateTime createdAt;
-    }
-
-    // Entidad: Categorias de productos
-    @Entity @Table(name = "categorias")
-    public static class Categoria {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        public String nombre, descripcion;
-    }
-
-    // Entidad: Productos del inventario
-    @Entity @Table(name = "productos")
-    public static class Producto {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        public String nombre, descripcion;
-        public BigDecimal precio;
-        public Integer stock;
-        @Column(name = "categoria_id")
-        public Integer categoriaId;
-        @Column(name = "codigo_barras")
-        public String codigoBarras;
-        @Column(name = "created_at")
-        public LocalDateTime createdAt;
-    }
-
-    // Entidad: Proveedores
-    @Entity @Table(name = "proveedores")
-    public static class Proveedor {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        public String nombre, telefono, email, direccion;
-    }
-
-    // Entidad: Compras a proveedores
-    @Entity @Table(name = "compras")
-    public static class Compra {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        @Column(name = "proveedor_id")
-        public Integer proveedorId;
-        @Column(name = "usuario_id")
-        public Integer usuarioId;
-        public LocalDateTime fecha;
-        public BigDecimal total;
-    }
-
-    // Entidad: Detalle de cada compra
-    @Entity @Table(name = "detalle_compras")
-    public static class DetalleCompra {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        @Column(name = "compra_id")
-        public Integer compraId;
-        @Column(name = "producto_id")
-        public Integer productoId;
-        public Integer cantidad;
-        @Column(name = "precio_compra")
-        public BigDecimal precioCompra;
-    }
-
-    // Entidad: Clientes
-    @Entity @Table(name = "clientes")
-    public static class Cliente {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        public String nombre, telefono, email;
-    }
-
-    // Entidad: Ventas realizadas
-    @Entity @Table(name = "ventas")
-    public static class Venta {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        @Column(name = "cliente_id")
-        public Integer clienteId;
-        @Column(name = "usuario_id")
-        public Integer usuarioId;
-        public LocalDateTime fecha;
-        public BigDecimal total;
-    }
-
-    // Entidad: Detalle de cada venta
-    @Entity @Table(name = "detalle_ventas")
-    public static class DetalleVenta {
-        @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-        public Integer id;
-        @Column(name = "venta_id")
-        public Integer ventaId;
-        @Column(name = "producto_id")
-        public Integer productoId;
-        public Integer cantidad;
-        @Column(name = "precio_venta")
-        public BigDecimal precioVenta;
     }
 
     // CRUD: Listar todos los productos
